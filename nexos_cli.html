@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080e0c;border-radius:var(--border-radius-lg,10px);overflow:hidden}
+.cli{width:100%;height:580px;background:#080e0c;display:flex;flex-direction:column;font-family:'JetBrains Mono','Fira Mono','Courier New',monospace;font-size:12px;color:#d4ede8;border-radius:var(--border-radius-lg,10px);overflow:hidden}
+.monitor{flex-shrink:0;background:#0c1410;border-bottom:0.5px solid rgba(184,112,64,0.45);padding:6px 12px;display:flex;flex-direction:column;gap:4px}
+.mon-row{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;overflow:hidden}
+.mon-item{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.mon-label{font-size:9px;color:rgba(184,112,64,0.7);letter-spacing:0.6px;min-width:32px}
+.bar-wrap{display:flex;gap:2px;align-items:flex-end}
+.core-bar{width:26px;height:8px;background:rgba(46,196,168,0.1);border:0.5px solid rgba(46,196,168,0.2);border-radius:1px;overflow:hidden}
+.core-fill{height:100%;background:linear-gradient(90deg,#1a9e8a,#2ec4a8);border-radius:1px;transition:width .9s ease}
+.mem-bar{width:80px;height:8px;background:rgba(46,196,168,0.1);border:0.5px solid rgba(46,196,168,0.2);border-radius:1px;overflow:hidden}
+.mem-fill{height:100%;background:linear-gradient(90deg,#6a5ac8,#8a7ae8);transition:width .9s ease}
+.mon-val{font-size:10px;color:rgba(46,196,168,0.75);font-family:monospace}
+.mon-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.mon-clock{font-size:13px;color:rgba(212,237,232,0.85);letter-spacing:1px;background:rgba(8,16,14,0.8);border:0.5px solid rgba(46,196,168,0.25);border-radius:14px;padding:2px 12px}
+.mon-layer{font-size:9px;color:rgba(46,196,168,0.5);letter-spacing:0.8px;padding:2px 8px;border:0.5px solid rgba(46,196,168,0.2);border-radius:10px}
+/* tabs — pill buttons, active = indicator too */
+.tabs{flex-shrink:0;background:#0a1210;border-bottom:0.5px solid rgba(46,196,168,0.15);padding:5px 12px;display:flex;align-items:center;gap:5px}
+.tab{padding:4px 13px;border-radius:20px;font-size:11px;color:rgba(212,237,232,0.42);cursor:pointer;border:0.5px solid rgba(46,196,168,0.1);transition:all .15s;white-space:nowrap}
+.tab:hover{border-color:rgba(46,196,168,0.32);color:rgba(212,237,232,0.72)}
+.tab.active{background:rgba(46,196,168,0.12);border-color:rgba(46,196,168,0.5);color:#2ec4a8;box-shadow:0 0 8px rgba(46,196,168,0.1)}
+.tab-hint{margin-left:auto;font-size:9px;color:rgba(212,237,232,0.18);letter-spacing:0.3px}
+.main{flex:1;overflow:hidden;position:relative;min-height:0}
+.view{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.view.active{display:flex}
+/* shell */
+.shell-output{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:0;scroll-behavior:smooth}
+.shell-output::-webkit-scrollbar{width:3px}
+.shell-output::-webkit-scrollbar-thumb{background:rgba(46,196,168,0.2);border-radius:2px}
+.shell-line{line-height:1.65;white-space:pre-wrap;word-break:break-all}
+.shell-line.prompt{color:#2ec4a8}
+.shell-line.out{color:rgba(212,237,232,0.5)}
+.shell-line.err{color:#e24b4a}
+.shell-line.info{color:rgba(184,112,64,0.85)}
+.shell-line.dim{color:rgba(212,237,232,0.25)}
+.shell-line.success{color:#7a9e6a}
+/* apps */
+.apps-view{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:12px 14px}
+.apps-search{width:100%;background:rgba(0,0,0,0.35);border:0.5px solid rgba(46,196,168,0.22);border-radius:8px;padding:6px 12px;font-family:inherit;font-size:11px;color:#d4ede8;outline:none;margin-bottom:10px;flex-shrink:0}
+.apps-search::placeholder{color:rgba(212,237,232,0.22)}
+.apps-cat-bar{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;flex-shrink:0}
+.apps-cat{padding:3px 10px;border-radius:20px;font-size:10px;color:rgba(212,237,232,0.38);border:0.5px solid rgba(46,196,168,0.12);cursor:pointer;transition:all .15s;white-space:nowrap}
+.apps-cat:hover{border-color:rgba(46,196,168,0.35);color:rgba(212,237,232,0.7)}
+.apps-cat.active{background:rgba(46,196,168,0.1);border-color:rgba(46,196,168,0.4);color:#2ec4a8}
+.apps-grid{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;align-content:start}
+.apps-grid::-webkit-scrollbar{width:3px}
+.apps-grid::-webkit-scrollbar-thumb{background:rgba(46,196,168,0.2)}
+.app-tile{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;border-radius:10px;cursor:pointer;border:0.5px solid rgba(46,196,168,0.1);transition:all .15s;background:rgba(0,0,0,0.2)}
+.app-tile:hover{background:rgba(46,196,168,0.08);border-color:rgba(46,196,168,0.35);transform:translateY(-1px)}
+.app-tile.running{border-color:rgba(46,196,168,0.42);background:rgba(46,196,168,0.06)}
+.app-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.app-name{font-size:9px;color:rgba(212,237,232,0.65);text-align:center;line-height:1.3}
+.app-run-dot{width:5px;height:5px;border-radius:50%;background:#2ec4a8;flex-shrink:0}
+/* files */
+.files-view{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:10px 14px}
+.files-path{font-size:10px;color:rgba(184,112,64,0.7);margin-bottom:8px}
+.files-list{flex:1;overflow-y:auto}
+.files-list::-webkit-scrollbar{width:3px}
+.file-row{display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:4px;cursor:pointer;transition:background .12s}
+.file-row:hover{background:rgba(46,196,168,0.1)}
+.file-icon{font-size:11px;width:16px;text-align:center;flex-shrink:0}
+.file-name{flex:1;font-size:11px;color:rgba(212,237,232,0.8)}
+.file-name.dir{color:#2ec4a8}
+.file-meta{font-size:10px;color:rgba(212,237,232,0.3)}
+/* clock */
+.clock-view{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.big-clock{font-size:50px;color:#2ec4a8;letter-spacing:4px;text-shadow:0 0 20px rgba(46,196,168,0.28)}
+.big-date{font-size:13px;color:rgba(212,237,232,0.48);letter-spacing:2px}
+.clock-sub{font-size:10px;color:rgba(212,237,232,0.28);letter-spacing:1px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:4px}
+.cal-day{width:24px;height:20px;display:flex;align-items:center;justify-content:center;font-size:9px;color:rgba(212,237,232,0.3);border-radius:3px}
+.cal-day.hdr{color:rgba(46,196,168,0.38)}
+.cal-day.today{background:rgba(46,196,168,0.15);color:#2ec4a8;border:0.5px solid rgba(46,196,168,0.3)}
+.cal-day.past{color:rgba(212,237,232,0.55)}
+/* WM overlay */
+.wm-overlay{position:absolute;inset:0;background:#080e0c;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:50;opacity:0;pointer-events:none;transition:opacity .3s}
+.wm-overlay.active{opacity:1;pointer-events:all}
+.wm-logo{font-size:48px;color:#2ec4a8;text-shadow:0 0 30px rgba(46,196,168,0.5);letter-spacing:4px}
+.wm-status{font-size:11px;color:rgba(46,196,168,0.6);letter-spacing:1px;min-height:18px}
+.wm-bar{width:200px;height:3px;background:rgba(46,196,168,0.12);border-radius:2px;overflow:hidden}
+.wm-prog{height:100%;background:linear-gradient(90deg,#1a9e8a,#2ec4a8);width:0%;transition:width .4s ease;border-radius:2px}
+.wm-app-name{font-size:13px;color:rgba(212,237,232,0.6);letter-spacing:2px}
+/* dict bar */
+.dict-bar{flex-shrink:0;background:#0a1210;border-top:0.5px solid rgba(46,196,168,0.2);padding:7px 12px;display:flex;align-items:center;gap:8px}
+.mic-icon{flex-shrink:0;width:22px;height:22px;border-radius:50%;border:0.5px solid rgba(46,196,168,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s}
+.mic-icon:hover{background:rgba(46,196,168,0.12)}
+.mic-dot-el{width:5px;height:5px;border-radius:50%;background:#2ec4a8;transition:background .2s}
+.prompt-wrap{flex:1;display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.3);border:0.5px solid rgba(46,196,168,0.2);border-radius:8px;padding:5px 10px}
+.prompt-sym{color:#2ec4a8;flex-shrink:0;font-size:13px}
+.prompt-input{flex:1;background:transparent;border:none;outline:none;font-family:inherit;font-size:12px;color:#d4ede8;caret-color:#2ec4a8}
+.prompt-input::placeholder{color:rgba(212,237,232,0.2)}
+.dict-hint{font-size:9px;color:rgba(46,196,168,0.38);white-space:nowrap}
+.status-key{background:rgba(46,196,168,0.08);border:0.5px solid rgba(46,196,168,0.2);border-radius:3px;padding:1px 5px;font-size:9px;color:rgba(46,196,168,0.55)}
+/* status bar — no view indicators, only controls + voice */
+.status-bar{flex-shrink:0;background:#0c1410;border-top:0.5px solid rgba(184,112,64,0.45);padding:4px 12px;display:flex;align-items:center;gap:8px}
+.status-item{font-size:9px;color:rgba(212,237,232,0.28);letter-spacing:0.4px;white-space:nowrap}
+.status-div{width:0.5px;height:12px;background:rgba(46,196,168,0.14)}
+.voice-row{display:flex;align-items:center;gap:4px;margin-left:auto}
+.vdot{width:5px;height:5px;border-radius:50%;background:#2ec4a8}
+.vstatus{font-size:9px;color:rgba(46,196,168,0.55);letter-spacing:0.4px}
+</style>
+</head>
+<body>
+<div class="cli" id="cli">
+
+  <!-- monitor -->
+  <div class="monitor">
+    <div class="mon-row">
+      <div class="mon-item">
+        <div class="mon-label">CPU</div>
+        <div class="bar-wrap" id="core-bars"></div>
+        <div class="mon-val" id="cpu-pct">12%</div>
+      </div>
+      <div class="mon-item">
+        <div class="mon-label">MEM</div>
+        <div class="mem-bar"><div class="mem-fill" id="mem-fill" style="width:24%"></div></div>
+        <div class="mon-val">1.2/8GB</div>
+      </div>
+      <div class="mon-item">
+        <div class="mon-label">TEMP</div>
+        <div class="mon-val" id="temp-val">42°C</div>
+      </div>
+      <div class="mon-item">
+        <div class="mon-label">NET</div>
+        <div class="mon-val">↑0.2 ↓1.4MB</div>
+      </div>
+      <div class="mon-item">
+        <div class="mon-label">DISK</div>
+        <div class="mem-bar"><div class="mem-fill" style="width:38%;background:linear-gradient(90deg,#b87040,#d4904a)"></div></div>
+        <div class="mon-val">38%</div>
+      </div>
+      <div class="mon-right">
+        <div class="mon-layer">LAYER 1</div>
+        <div class="mon-clock" id="cli-clock">--:--</div>
+      </div>
+    </div>
+    <div class="mon-row">
+      <div class="mon-label" style="font-size:9px;color:rgba(46,196,168,0.3)">PROCS</div>
+      <div class="mon-val" style="font-size:9px;color:rgba(46,196,168,0.45)">nexos-speech 2% · pipewire 1% · xlibre 0% · bash 0%</div>
+    </div>
+  </div>
+
+  <!-- tabs — pill buttons only, active state = indicator -->
+  <div class="tabs">
+    <div class="tab active" id="tab-shell" onclick="switchTab('shell')">shell</div>
+    <div class="tab" id="tab-apps"  onclick="switchTab('apps')">apps</div>
+    <div class="tab" id="tab-files" onclick="switchTab('files')">files</div>
+    <div class="tab" id="tab-clock" onclick="switchTab('clock')">clock</div>
+    <span class="tab-hint">tab · "show apps" · "go to files"</span>
+  </div>
+
+  <!-- main -->
+  <div class="main">
+
+    <div class="view active" id="view-shell">
+      <div class="shell-output" id="shell-out"></div>
+    </div>
+
+    <div class="view" id="view-apps">
+      <div class="apps-view">
+        <input class="apps-search" id="apps-search" type="text" placeholder="search apps..." oninput="filterAppGrid(this.value)" autocomplete="off"/>
+        <div class="apps-cat-bar" id="apps-cats"></div>
+        <div class="apps-grid" id="apps-grid"></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-files">
+      <div class="files-view">
+        <div class="files-path" id="files-path">📁 /NexOS-home/dan</div>
+        <div class="files-list" id="files-list"></div>
+      </div>
+    </div>
+
+    <div class="view" id="view-clock">
+      <div class="clock-view">
+        <div class="big-clock" id="big-clock">--:--:--</div>
+        <div class="big-date"  id="big-date">---</div>
+        <div class="clock-sub">uptime: 3h 24m · NexOS v0.1.0</div>
+        <div class="cal-grid"  id="cal-grid"></div>
+      </div>
+    </div>
+
+    <div class="wm-overlay" id="wm-overlay">
+      <div class="wm-logo">NexOS</div>
+      <div class="wm-app-name" id="wm-app-name"></div>
+      <div class="wm-bar"><div class="wm-prog" id="wm-prog"></div></div>
+      <div class="wm-status"   id="wm-status">initialising...</div>
+    </div>
+
+  </div>
+
+  <!-- dict / prompt bar -->
+  <div class="dict-bar">
+    <div class="mic-icon" id="mic-btn" onclick="toggleDictation()">
+      <div class="mic-dot-el" id="mic-dot"></div>
+    </div>
+    <div class="prompt-wrap">
+      <span class="prompt-sym">›</span>
+      <input class="prompt-input" id="prompt-input" type="text"
+        placeholder="type or dictate — show apps · go to files · open browser..."
+        autocomplete="off" spellcheck="false"/>
+    </div>
+    <div class="dict-hint"><span class="status-key">↵</span> enter · <span class="status-key">confirm</span> voice</div>
+  </div>
+
+  <!-- status bar — keyboard hints + voice only -->
+  <div class="status-bar">
+    <div class="status-item"><span class="status-key">tab</span> switch view</div>
+    <div class="status-div"></div>
+    <div class="status-item"><span class="status-key">↑↓</span> history</div>
+    <div class="status-div"></div>
+    <div class="status-item"><span class="status-key">esc</span> clear</div>
+    <div class="status-div"></div>
+    <div class="status-item">say <span class="status-key">show</span> or <span class="status-key">go to</span> + view name</div>
+    <div class="voice-row">
+      <div class="vdot" id="vdot"></div>
+      <div class="vstatus" id="vstatus">listening</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// clock
+function tickCLI(){
+  const n=new Date();
+  const hm=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+  document.getElementById('cli-clock').textContent=hm;
+  document.getElementById('big-clock').textContent=hm+':'+String(n.getSeconds()).padStart(2,'0');
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('big-date').textContent=days[n.getDay()]+' '+n.getDate()+' '+months[n.getMonth()]+' '+n.getFullYear();
+  buildCal(n);
+}
+tickCLI();setInterval(tickCLI,1000);
+
+function buildCal(n){
+  const days=['Mo','Tu','We','Th','Fr','Sa','Su'];
+  let html=days.map(d=>`<div class="cal-day hdr">${d}</div>`).join('');
+  const first=new Date(n.getFullYear(),n.getMonth(),1);
+  const total=new Date(n.getFullYear(),n.getMonth()+1,0).getDate();
+  let dow=(first.getDay()+6)%7;
+  for(let i=0;i<dow;i++) html+=`<div class="cal-day"></div>`;
+  for(let i=1;i<=total;i++){
+    const cls=i===n.getDate()?'today':i<n.getDate()?'past':'';
+    html+=`<div class="cal-day ${cls}">${i}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML=html;
+}
+
+// apps
+const APPS=[
+  {name:'Terminal',   cat:'System',  icon:'⌨', color:'#2EC4A8',running:true},
+  {name:'Files',      cat:'System',  icon:'📁',color:'#B87040', running:false},
+  {name:'Settings',   cat:'System',  icon:'⚙', color:'#888780',running:false},
+  {name:'Upgrader',   cat:'System',  icon:'⬆', color:'#6A5AC8',running:false},
+  {name:'Monitor',    cat:'System',  icon:'📊',color:'#D4537E', running:false},
+  {name:'Browser',    cat:'Internet',icon:'🌐',color:'#534AB7', running:false},
+  {name:'Email',      cat:'Internet',icon:'✉', color:'#4A7FC8',running:false},
+  {name:'Music',      cat:'Media',   icon:'🎵',color:'#639922', running:false},
+  {name:'Video',      cat:'Media',   icon:'🎬',color:'#A04AC8', running:false},
+  {name:'Camera',     cat:'Media',   icon:'📷',color:'#C84A6A', running:false},
+  {name:'Photos',     cat:'Media',   icon:'🖼', color:'#C89A2A',running:false},
+  {name:'Notes',      cat:'Office',  icon:'📝',color:'#EF9F27', running:false},
+  {name:'Calendar',   cat:'Office',  icon:'📅',color:'#2A9EC8', running:false},
+  {name:'Calculator', cat:'Office',  icon:'🔢',color:'#7A9E6A', running:false},
+  {name:'Emulation',  cat:'Games',   icon:'🕹', color:'#E24B4A',running:false},
+  {name:'Games',      cat:'Games',   icon:'🎮',color:'#C8502A', running:false},
+];
+const ALL_CATS=['All',...new Set(APPS.map(a=>a.cat))];
+let activeAppCat='All', appSearch='';
+
+function buildCatBar(){
+  document.getElementById('apps-cats').innerHTML=ALL_CATS.map(c=>
+    `<div class="apps-cat ${c===activeAppCat?'active':''}" onclick="setAppCat('${c}')">${c}</div>`
+  ).join('');
+}
+function setAppCat(c){activeAppCat=c;buildCatBar();renderAppGrid();}
+function filterAppGrid(v){appSearch=v.toLowerCase();renderAppGrid();}
+function renderAppGrid(){
+  let apps=APPS;
+  if(activeAppCat!=='All') apps=apps.filter(a=>a.cat===activeAppCat);
+  if(appSearch) apps=apps.filter(a=>a.name.toLowerCase().includes(appSearch));
+  document.getElementById('apps-grid').innerHTML=apps.map(a=>`
+    <div class="app-tile ${a.running?'running':''}" onclick="launchAppFromGrid('${a.name}')">
+      <div class="app-icon" style="background:${a.color}22;border:0.5px solid ${a.color}44">${a.icon}</div>
+      ${a.running?'<div class="app-run-dot"></div>':''}
+      <div class="app-name">${a.name}</div>
+    </div>`).join('');
+}
+buildCatBar();renderAppGrid();
+
+function launchAppFromGrid(name){launchWM(name);}
+
+// WM launch
+const wmSteps=[
+  {msg:'starting XLibre display server...',       pct:20},
+  {msg:'loading NexOS window manager...',          pct:45},
+  {msg:'initialising GPU compositor...',           pct:65},
+  {msg:'loading app: ',                            pct:85, useName:true},
+  {msg:'handoff complete',                         pct:100},
+];
+function launchWM(appName){
+  const ov=document.getElementById('wm-overlay');
+  const prog=document.getElementById('wm-prog');
+  const status=document.getElementById('wm-status');
+  document.getElementById('wm-app-name').textContent=appName?'launching '+appName:'';
+  ov.classList.add('active');
+  prog.style.width='0%';
+  if(appName) addShellLine('info','[NLP] intent: open_app · "'+appName+'" · confidence: 0.97');
+  const app=APPS.find(a=>a.name===appName);
+  if(app) app.running=true;
+  let i=0;
+  function step(){
+    if(i>=wmSteps.length){
+      setTimeout(()=>{
+        status.textContent='app closed — returning to NexOS shell...';
+        prog.style.width='0%';
+        if(app) app.running=false;
+        setTimeout(()=>{
+          ov.classList.remove('active');
+          addShellLine('success','['+appName+'] closed — shell restored');
+          addShellLine('prompt','dan@nexos ~ $');
+          switchTab('shell');
+        },800);
+      },2200);
+      return;
+    }
+    const s=wmSteps[i++];
+    prog.style.width=s.pct+'%';
+    status.textContent=s.msg+(s.useName?appName:'');
+    setTimeout(step,s.pct===100?200:550);
+  }
+  step();
+}
+
+// tabs
+const TABS=['shell','apps','files','clock'];
+let activeTab='shell';
+function switchTab(t){
+  TABS.forEach(id=>{
+    document.getElementById('view-'+id).classList.toggle('active',id===t);
+    document.getElementById('tab-'+id).classList.toggle('active',id===t);
+  });
+  activeTab=t;
+  if(t==='shell') setTimeout(()=>document.getElementById('prompt-input').focus(),50);
+  if(t==='apps'){buildCatBar();renderAppGrid();}
+  if(t==='files') renderFiles(currentPath);
+}
+
+document.addEventListener('keydown',e=>{
+  const inp=document.getElementById('prompt-input');
+  if(e.key==='Tab'&&document.activeElement===inp){
+    e.preventDefault();
+    switchTab(TABS[(TABS.indexOf(activeTab)+1)%TABS.length]);
+    return;
+  }
+  if(e.key==='Enter'&&document.activeElement===inp){execCommand();return;}
+  if(e.key==='Escape'&&document.activeElement===inp){inp.value='';return;}
+  if(e.key==='ArrowUp'&&document.activeElement===inp){e.preventDefault();navigateHistory(-1);return;}
+  if(e.key==='ArrowDown'&&document.activeElement===inp){e.preventDefault();navigateHistory(1);return;}
+});
+
+// files
+const fsTree={
+  '/NexOS-home/dan':[
+    {name:'Documents',type:'dir', size:''},
+    {name:'Downloads',type:'dir', size:''},
+    {name:'Music',    type:'dir', size:''},
+    {name:'Pictures', type:'dir', size:''},
+    {name:'.config',  type:'dir', size:''},
+    {name:'notes.txt',type:'file',size:'2.1KB'},
+    {name:'startup.sh',type:'file',size:'844B'},
+  ],
+  '/NexOS-home/dan/Documents':[
+    {name:'..',               type:'up',  size:''},
+    {name:'project-notes.md', type:'file',size:'12KB'},
+    {name:'nexos-design.txt', type:'file',size:'4.2KB'},
+  ],
+  '/NexOS-hardware':[
+    {name:'cpu',    type:'dir',size:''},
+    {name:'gpu',    type:'dir',size:''},
+    {name:'audio',  type:'dir',size:''},
+    {name:'battery',type:'dir',size:''},
+  ],
+};
+let currentPath='/NexOS-home/dan';
+function renderFiles(path){
+  currentPath=path;
+  document.getElementById('files-path').textContent='📁 '+path;
+  const entries=fsTree[path]||[{name:'(empty)',type:'file',size:''}];
+  const icons={dir:'📂',file:'📄',up:'↩'};
+  document.getElementById('files-list').innerHTML=entries.map(f=>`
+    <div class="file-row" onclick="fileClick('${path}','${f.name}','${f.type}')">
+      <span class="file-icon">${icons[f.type]||'📄'}</span>
+      <span class="file-name ${f.type!=='file'?'dir':''}">${f.name}</span>
+      <span class="file-meta">${f.size}</span>
+    </div>`).join('');
+}
+renderFiles(currentPath);
+function fileClick(path,name,type){
+  if(type==='dir'){const n=path+'/'+name;if(fsTree[n])renderFiles(n);}
+  else if(type==='up'){const p=path.split('/');p.pop();const par=p.join('/')||'/';if(fsTree[par])renderFiles(par);}
+  else{addShellLine('info','cat '+path+'/'+name);addShellLine('out','[file contents would display here]');switchTab('shell');}
+}
+
+// shell
+const shellHistory=[];
+let histIdx=-1;
+
+const boot=[
+  {t:'dim',    s:'NexOS v0.1.0 — seL4 microkernel · OpenRC · voice ready'},
+  {t:'dim',    s:'hardware: GPU Intel Iris Xe · Audio HDA · WiFi AX201'},
+  {t:'info',   s:'speech: whisper.cpp STT · piper TTS · NLP active'},
+  {t:'dim',    s:'try: show apps · go to files · open browser · help'},
+  {t:'dim',    s:'─────────────────────────────────────────────'},
+  {t:'prompt', s:'dan@nexos /NexOS-home/dan $'},
+];
+boot.forEach(l=>{
+  const d=document.createElement('div');
+  d.className='shell-line '+l.t;
+  d.textContent=l.s;
+  document.getElementById('shell-out').appendChild(d);
+});
+
+function addShellLine(type,text){
+  const out=document.getElementById('shell-out');
+  const d=document.createElement('div');
+  d.className='shell-line '+type;
+  d.textContent=text;
+  out.appendChild(d);
+  out.scrollTop=out.scrollHeight;
+}
+
+// navigation aliases — all resolved to a canonical view name
+const VIEW_ALIASES={
+  shell:   ['shell','terminal','home','back'],
+  apps:    ['apps','applications','launcher','app screen','app list'],
+  files:   ['files','file browser','filesystem','file manager','explorer'],
+  clock:   ['clock','time','calendar','date'],
+};
+function resolveView(word){
+  for(const [view,aliases] of Object.entries(VIEW_ALIASES)){
+    if(aliases.some(a=>word.includes(a))) return view;
+  }
+  return null;
+}
+
+const cmdMap={
+  'ls':       ()=>['documents/  downloads/  music/  pictures/  notes.txt  startup.sh'],
+  'pwd':      ()=>[currentPath],
+  'whoami':   ()=>['dan'],
+  'uname -a': ()=>['NexOS 0.1.0 seL4-amd64 #1 SMP'],
+  'cat /NexOS-hardware/cpu/0/temp':    ()=>['42'],
+  'cat /NexOS-speech/stt/status':      ()=>['listening'],
+  'cat /NexOS-hardware/battery/level': ()=>['87'],
+  'help':()=>[
+    'navigation:  show [view] · go to [view]  — views: shell, apps, files, clock',
+    'apps:        open [app] · launch [app]',
+    'desktop:     show desktop · go to desktop',
+    'system:      ls · pwd · whoami · uname · cat [path]',
+    'voice:       dictate any command, say "confirm" to execute',
+  ],
+};
+
+function execCommand(){
+  const inp=document.getElementById('prompt-input');
+  const raw=inp.value.trim();
+  if(!raw)return;
+  shellHistory.unshift(raw);histIdx=-1;
+  const cmd=raw.toLowerCase();
+  addShellLine('prompt','dan@nexos '+currentPath+' $ '+raw);
+
+  // navigation: "show X" or "go to X"
+  const navMatch=cmd.match(/^(?:show|go to)\s+(.+)$/);
+  if(navMatch){
+    const target=navMatch[1].trim();
+    // desktop is special
+    if(target==='desktop'){
+      launchWM(null);
+      inp.value='';return;
+    }
+    const view=resolveView(target);
+    if(view){
+      addShellLine('info','→ '+view);
+      switchTab(view);
+      inp.value='';return;
+    } else {
+      // maybe an app name
+      const app=APPS.find(a=>a.name.toLowerCase()===target);
+      if(app){launchWM(app.name);inp.value='';return;}
+      addShellLine('err','unknown destination: '+target);
+      inp.value='';return;
+    }
+  }
+
+  // open / launch app
+  if(cmd.startsWith('open ')||cmd.startsWith('launch ')){
+    const name=raw.slice(raw.indexOf(' ')+1).trim();
+    const app=APPS.find(a=>a.name.toLowerCase()===name.toLowerCase());
+    launchWM(app?app.name:name);
+    inp.value='';return;
+  }
+
+  // show desktop shorthand
+  if(cmd==='show desktop'||cmd==='go to desktop'){
+    launchWM(null);inp.value='';return;
+  }
+
+  // switch to (legacy alias, still works)
+  if(cmd.startsWith('switch to ')){
+    const t=cmd.slice(10).trim();
+    const view=resolveView(t)||t;
+    if(TABS.includes(view)){switchTab(view);}
+    else addShellLine('err','unknown view: '+t);
+    inp.value='';return;
+  }
+
+  // cd
+  if(cmd.startsWith('cd ')){
+    const t=raw.slice(3).trim();
+    const full=t.startsWith('/')?t:currentPath+'/'+t;
+    if(fsTree[full]){currentPath=full;addShellLine('out','');}
+    else addShellLine('err','cd: '+t+': no such directory');
+    inp.value='';return;
+  }
+
+  // built-in commands
+  const fn=cmdMap[cmd];
+  if(fn){fn().forEach(l=>addShellLine('out',l));inp.value='';return;}
+
+  addShellLine('err',raw+': command not found — type "help"');
+  addShellLine('prompt','dan@nexos '+currentPath+' $');
+  inp.value='';
+}
+
+function navigateHistory(d){
+  const inp=document.getElementById('prompt-input');
+  histIdx=Math.max(-1,Math.min(shellHistory.length-1,histIdx+d));
+  inp.value=histIdx>=0?shellHistory[histIdx]:'';
+  setTimeout(()=>inp.setSelectionRange(inp.value.length,inp.value.length),0);
+}
+
+// dictation sim
+let dictating=false,dictTimer=null;
+const dictPhrases=[
+  ['show','apps'],
+  ['go','to','files'],
+  ['open','browser'],
+  ['show','clock'],
+  ['go','to','desktop'],
+  ['open','music'],
+  ['show','desktop'],
+  ['go','to','shell'],
+];
+function toggleDictation(){
+  dictating=!dictating;
+  const dot=document.getElementById('mic-dot');
+  const vs=document.getElementById('vstatus');
+  if(dictating){
+    dot.style.background='#e24b4a';
+    vs.textContent='recording';
+    const phrase=dictPhrases[Math.floor(Math.random()*dictPhrases.length)];
+    const inp=document.getElementById('prompt-input');
+    inp.value='';let i=0;
+    clearInterval(dictTimer);
+    dictTimer=setInterval(()=>{
+      if(i>=phrase.length){
+        clearInterval(dictTimer);
+        vs.textContent='say "confirm"';
+        setTimeout(()=>{if(dictating){execCommand();toggleDictation();}},1500);
+        return;
+      }
+      inp.value=(inp.value?inp.value+' ':'')+phrase[i++];
+      inp.style.color='#2ec4a8';
+      setTimeout(()=>inp.style.color='#d4ede8',180);
+    },400);
+  } else {
+    clearInterval(dictTimer);
+    document.getElementById('mic-dot').style.background='#2ec4a8';
+    vs.textContent='listening';
+  }
+}
+
+// CPU sim
+const cores=4;
+let cpuLoads=Array(cores).fill(0).map(()=>Math.random()*25+5);
+function buildCoreBars(){
+  document.getElementById('core-bars').innerHTML=cpuLoads.map((v,i)=>`
+    <div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+      <div class="core-bar"><div class="core-fill" style="width:${v}%"></div></div>
+      <div style="font-size:7px;color:rgba(46,196,168,0.3)">C${i+1}</div>
+    </div>`).join('');
+}
+buildCoreBars();
+setInterval(()=>{
+  cpuLoads=cpuLoads.map(v=>Math.max(2,Math.min(95,v+(Math.random()-.48)*14)));
+  buildCoreBars();
+  const cpu=Math.round(cpuLoads.reduce((a,b)=>a+b)/cores);
+  document.getElementById('cpu-pct').textContent=cpu+'%';
+  document.getElementById('temp-val').textContent=(38+cpu*.12).toFixed(0)+'°C';
+  document.getElementById('mem-fill').style.width=(20+Math.random()*8)+'%';
+  document.getElementById('vdot').style.opacity=0.35+Math.random()*.65;
+},1300);
+
+setTimeout(()=>document.getElementById('prompt-input').focus(),100);
+</script>
+</body>
+</html>
