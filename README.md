@@ -2,7 +2,7 @@
 
 NexOS is a custom, systemd-free Linux operating system built on Devuan
 GNU/Linux, designed as the foundation for the
-[Alternix](https://github.com/AlterniTech/Alternix) desktop environment.
+[Alternix](https://github.com/DansDesigns/Alternix) desktop environment.
 Instead of installing Devuan and then running the Alternix installer as a
 separate step, NexOS bundles the whole thing into one ISO: boot it, answer a
 few questions, reboot into Alternix.
