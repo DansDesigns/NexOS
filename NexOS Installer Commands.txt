@@ -1,0 +1,38 @@
+# unzip nexos-installer.zip
+
+# to change the location of NexOS folder, change the line:
+# cp -r /mnt/[DRIVE]/[FOLDER-PATH]/NexOS/nexos-installer
+
+
+cd ~
+sudo rm -rf ~/nexos-installer
+
+cp -r /mnt/c/Users/dan/github/NexOS/nexos-installer ~/nexos-installer
+
+cd ~/nexos-installer
+sudo bash build-iso.sh
+
+
+# specific build flags:
+sudo bash build-iso.sh --arm    # ARM64
+sudo bash build-iso.sh --amd    # AMD64 
+
+
+# ISO appears in ~/nexos-installer/
+
+
+# Copy it back when done:
+
+cp ~/nexos-installer/nexos-installer.iso /mnt/c/Users/dan/github/NexOS/
+
+cp ~/nexos-installer/nexos-installer-amd64.iso /mnt/c/Users/dan/github/NexOS/
+
+cp ~/nexos-installer/nexos-installer-arm64.iso /mnt/c/Users/dan/github/NexOS/
+
+
+ERRORS:
+When you drop to shell after Ctrl+C, the commands to know are:
+
+cat /tmp/nexos-install.log | tail -50 — main installer log
+cat /tmp/sel4-build.log | tail -50 — seL4 build detail
+bash /installer/install.sh — restart installer manually
