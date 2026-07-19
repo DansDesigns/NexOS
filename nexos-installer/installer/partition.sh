@@ -142,8 +142,11 @@ partition_guided() {
         [[ -z "$swap_mb" ]] && swap_mb=2048
     fi
 
-    # Separate /home option
-    if confirm "Create a separate /home partition?"; then
+    # Separate /home option — ENTER defaults to no
+    local home_ans
+    echo -en "  ${W}Create a separate /home partition?${N} ${D}[y/N] (default is no)${N} "
+    read -r home_ans
+    if [[ "$home_ans" =~ ^[yY] ]]; then
         USE_HOME=1
     fi
 

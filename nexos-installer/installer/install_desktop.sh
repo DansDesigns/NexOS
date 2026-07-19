@@ -141,15 +141,70 @@ _install_alternix() {
     fi
     _chroot "chown -R ${NEXOS_USERNAME}:${NEXOS_USERNAME} /home/${NEXOS_USERNAME}/Alternix"
 
+    # osm-sudo: make the GUI pattern-auth wrapper available system-wide,
+    # and export SUDO_ASKPASS so apps using 'sudo -A' get the GUI prompt.
+    if [[ -f "/home/${NEXOS_USERNAME}/Alternix/osm-sudo" ]] || \
+       [[ -f "${NEXOS_MOUNT}/home/${NEXOS_USERNAME}/Alternix/osm-sudo" ]]; then
+        local osm_src="${NEXOS_MOUNT}/home/${NEXOS_USERNAME}/Alternix/osm-sudo"
+        [[ -f "$osm_src" ]] || osm_src="/home/${NEXOS_USERNAME}/Alternix/osm-sudo"
+        tr -d '\r' < "$osm_src" > "${NEXOS_MOUNT}/usr/local/bin/osm-sudo"
+        chmod +x "${NEXOS_MOUNT}/usr/local/bin/osm-sudo"
+        cat > "${NEXOS_MOUNT}/etc/profile.d/osm-sudo.sh" << 'OSMEOF'
+# Alternix GUI sudo: apps calling "sudo -A" get the osm-lock pattern prompt
+export SUDO_ASKPASS=/usr/local/bin/osm-sudo
+OSMEOF
+        ok "osm-sudo installed to /usr/local/bin (CRLF stripped)."
+    fi
+
     step 3 3 "Running the Alternix installer..."
     echo ""
+
+    # ═══════════════════════════════════════════════════════════
+    # DEBCONF PRESEED — DO NOT REMOVE
+    # keyboard-configuration / console-setup pop broken TUIs inside
+    # the chroot. Pre-answer them from the locale chosen in the
+    # NexOS installer, and export DEBIAN_FRONTEND=noninteractive
+    # for the run (env only — the Alternix script is NOT modified).
+    # ═══════════════════════════════════════════════════════════
+    local kb_layout
+    case "${NEXOS_LOCALE:-en_GB.UTF-8}" in
+        en_GB*) kb_layout="gb" ;;
+        en_US*) kb_layout="us" ;;
+        de_DE*) kb_layout="de" ;;
+        fr_FR*) kb_layout="fr" ;;
+        *)      kb_layout="us" ;;
+    esac
+
+    chroot "$NEXOS_MOUNT" debconf-set-selections << DEBEOF
+keyboard-configuration  keyboard-configuration/xkb-keymap       select  ${kb_layout}
+keyboard-configuration  keyboard-configuration/layoutcode       string  ${kb_layout}
+keyboard-configuration  keyboard-configuration/variant          select  ${kb_layout}
+keyboard-configuration  keyboard-configuration/model            select  pc105
+console-setup           console-setup/charmap47                 select  UTF-8
+console-setup           console-setup/codeset47                 select  Guess optimal character set
+DEBEOF
+
+    # Write the keyboard config file directly too
+    cat > "${NEXOS_MOUNT}/etc/default/keyboard" << KBEOF
+XKBMODEL="pc105"
+XKBLAYOUT="${kb_layout}"
+XKBVARIANT=""
+XKBOPTIONS=""
+BACKSPACE="guess"
+KBEOF
+
+    info "Keyboard preseeded: ${kb_layout} (from ${NEXOS_LOCALE})"
     info "The Alternix installer will now run. Answer its prompts when asked."
     echo ""
 
-    # Run interactively — direct terminal, no pipes, so prompts work
-    chroot "$NEXOS_MOUNT" /bin/bash -c \
+    # Run interactively — direct terminal, no pipes, so prompts work.
+    # DEBIAN_FRONTEND=noninteractive stops debconf TUIs opening.
+    chroot "$NEXOS_MOUNT" /usr/bin/env \
+        DEBIAN_FRONTEND=noninteractive \
+        DEBCONF_NONINTERACTIVE_SEEN=true \
+        HOME="/home/${NEXOS_USERNAME}" \
+        /bin/bash -c \
         "cd /home/${NEXOS_USERNAME}/Alternix && \
-         HOME=/home/${NEXOS_USERNAME} \
          bash install-alternix_devuan.sh"
     local alt_exit=$?
 
