@@ -76,7 +76,7 @@ When it finishes, remove the USB and reboot straight into the desktop.
 
 ## Building the ISO
 
-Build on a Devuan (or Debian) host:
+Build on Devuan/Debian/WSL2 Debian:
 
 ```bash
 git clone <this-repo>
