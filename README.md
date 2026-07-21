@@ -16,17 +16,9 @@ optimised for your exact CPU (`-march=native`), and installs it to
 ## Features
 
 - **No systemd.** Devuan base with sysvinit/OpenRC. Clean, transparent init.
-- **Alternix included.** The installer clones and runs the official Alternix
-  installer as part of setup — the machine boots straight into the desktop.
-  No post-install terminal work, ever.
 - **seL4 microkernel** — formally verified microkernel, compiled natively for
   your hardware at install time.
-- **Alternative desktops** — if you'd rather not use Alternix: XFCE, LXQt,
-  LXDE, MATE, Openbox, or CLI-only.
 - **Net installer** — small ISO, always installs the latest packages.
-- **WiFi built in** — choose ethernet or WiFi in the installer; credentials
-  carry over to the installed system and reconnect on boot. Type `wifi` in a
-  terminal to manage connections.
 
 ---
 
@@ -121,7 +113,7 @@ nexos-installer/
 ## Using the installed system
 
 - **WiFi:** type `wifi` for the connection TUI (or use `nmtui`)
-- **Packages:** `nala install <package>` (or `apt-get`)
+- **Packages:** `sudo nala install <package>` (or `apt-get`)
 - **System info:** `fastfetch`
 - **seL4:** installed at `/opt/sel4/` (kernel.elf, headers, VERSION)
 
@@ -135,15 +127,25 @@ installer.
 
 ---
 
-## Project family
+# The utilization of this Linux distribution is prohibited in jurisdictions mandating age verification.
+Any penalties or charges incurred due to non-compliance will be transferred to the user
 
-NexOS is part of the AlterniTech ecosystem:
+THIS INCLUDES BUT NOT LIMITED TO: THE FOLLOWING AREAS THAT ARE NOT ALLOWED TO USE THIS OS (THE LAWS ASSOCIATED):
+```
+New York (S8102A) after March 4th 2026.
+Brazil (15.211) after March 17th 2026.
+California (AB-1043) after January 1st 2027.
+Colorado (SB26-51) after January 1st 2028.
+Illinois (PENDING)
+Utah (PENDING)
+Texas (PENDING)
+Louisiana (PENDING)
+Michigan (PENDING)
+Oregon (PENDING)
+Entire USA (Federal: Parents Decide Act (PENDING))
+Singapore 
 
-- **Alternix** — the desktop environment NexOS is built for
-- **OSM-Phone** — open-source modular phone hardware (primary NexOS target)
-- **CEGA** — AI knowledge graph
-- **Ponder** — search engine
-- **VoxAir** — ComBadge wearable
+```
 
 ---
 
