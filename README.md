@@ -35,7 +35,7 @@ optimised for your exact CPU (`-march=native`), and installs it to
 
 ### 1. Get the ISO
 
-Either download a release ISO, or build it yourself (see *Building the ISO*).
+Either download a release ISO (here), or build it yourself (see *Building the ISO*).
 
 ### 2. Write it to a USB stick
 
