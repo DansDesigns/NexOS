@@ -1,36 +1,40 @@
-# unzip nexos-installer.zip
+# How to create ISO on Windows with WSL2
 
+# unzip nexos-installer.zip
 # to change the location of NexOS folder, change the line:
 # cp -r /mnt/[DRIVE]/[FOLDER-PATH]/NexOS/nexos-installer
 
+# 1. Type the following lines into Debian WSL2
 
 cd ~
+# remove folder if it already exists:
 sudo rm -rf ~/nexos-installer
 
+# copy installer folder from Windows file system to Debian WSL2:
 cp -r /mnt/c/Users/dan/github/NexOS/nexos-installer ~/nexos-installer
 
 cd ~/nexos-installer
 sudo bash build-iso.sh
 
 
-# specific build flags:
+# (future upgrade) specific build flags:
 sudo bash build-iso.sh --arm    # ARM64
 sudo bash build-iso.sh --amd    # AMD64 
 
 
-# ISO appears in ~/nexos-installer/
+# 2. ISO appears in ~/nexos-installer/
 
 
-# Copy it back when done:
+# 3. Copy it back to windows file system when done:
 
 cp ~/nexos-installer/nexos-installer.iso /mnt/c/Users/dan/github/NexOS/
 
+(future versions)
 cp ~/nexos-installer/nexos-installer-amd64.iso /mnt/c/Users/dan/github/NexOS/
-
 cp ~/nexos-installer/nexos-installer-arm64.iso /mnt/c/Users/dan/github/NexOS/
 
 
-ERRORS:
+ERROR NOTE:
 When you drop to shell after Ctrl+C, the commands to know are:
 
 cat /tmp/nexos-install.log | tail -50 — main installer log
