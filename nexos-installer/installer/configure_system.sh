@@ -42,6 +42,7 @@ gather_user_config() {
     _select_locale
 }
 
+
 _select_timezone() {
     echo ""
     echo -e "  ${W}Timezone${N}"
@@ -105,6 +106,7 @@ configure_system() {
     section "Configuring System"
 
     _configure_hostname
+    _configure_console_font
     _configure_locale
     _configure_timezone
     _configure_user
@@ -132,6 +134,17 @@ ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 EOF
     ok "Hostname: ${NEXOS_HOSTNAME}"
+}
+
+_configure_console_font() {
+    # Chosen up front in select_font_size (Stage 1, ui.sh) — carry the
+    # same choice into the installed system's console-setup config.
+    [[ -z "${NEXOS_FONT_FACE:-}" ]] && return 0
+    local cs="${NEXOS_MOUNT}/etc/default/console-setup"
+    [[ -f "$cs" ]] || return 0
+    sed -i "s/^FONTFACE=.*/FONTFACE=\"${NEXOS_FONT_FACE}\"/" "$cs" 2>/dev/null || true
+    sed -i "s/^FONTSIZE=.*/FONTSIZE=\"${NEXOS_FONT_SIZE}\"/" "$cs" 2>/dev/null || true
+    ok "Console font (${NEXOS_FONT_FACE} ${NEXOS_FONT_SIZE}) applied to installed system."
 }
 
 _configure_locale() {
@@ -173,7 +186,7 @@ _configure_user() {
     ok "User account created."
 
     # Add groups individually; skip any that don't exist
-    for grp in audio video cdrom plugdev netdev sudo dialout bluetooth; do
+    for grp in audio video cdrom plugdev netdev sudo dialout bluetooth input render; do
         if chroot "$NEXOS_MOUNT" getent group "$grp" &>/dev/null; then
             _chroot "usermod -aG $grp '${NEXOS_USERNAME}'" 2>>"$NEXOS_LOG" || true
         fi
@@ -282,22 +295,54 @@ _configure_network() {
             info "No wpa_supplicant config found — WiFi will need manual setup."
     fi
 
-    # Write network interfaces
-    # NOTE: no "auto eth0" — that blocks boot waiting for DHCP when no
-    # cable is plugged. allow-hotplug brings interfaces up without blocking.
+    # ═══════════════════════════════════════════════════════════
+    # NETWORKMANAGER OWNS NETWORKING — DO NOT REMOVE
+    # /etc/network/interfaces holds ONLY loopback. Any eth/wlan entry
+    # here (a) makes the dhcpcd initscript print "failed!" at boot and
+    # (b) makes NetworkManager IGNORE those interfaces entirely.
+    # WiFi carryover is a proper NM connection profile written below.
+    # ═══════════════════════════════════════════════════════════
     cat > "${NEXOS_MOUNT}/etc/network/interfaces" << 'EOF'
+# NexOS: networking is managed by NetworkManager.
+# Do not add interfaces here — NM ignores any listed below.
 auto lo
 iface lo inet loopback
-
-# Wired — non-blocking, comes up when cable present
-allow-hotplug eth0
-iface eth0 inet dhcp
-
-# WiFi — auto-reconnects using credentials from install
-allow-hotplug wlan0
-iface wlan0 inet dhcp
-    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
 EOF
+
+    # Convert install-time WiFi credentials into an NM connection profile
+    local wpa_conf="/etc/wpa_supplicant/wpa_supplicant.conf"
+    if [[ -f "$wpa_conf" ]]; then
+        local nm_ssid nm_psk
+        nm_ssid=$(grep -m1 -oP '(?<=ssid=").*(?=")' "$wpa_conf" 2>/dev/null)
+        # wpa_passphrase writes the 64-hex PSK on the psk= line; NM accepts it
+        nm_psk=$(grep -m1 -E '^\s*psk=[0-9a-f]{64}' "$wpa_conf" 2>/dev/null | sed 's/.*psk=//')
+        [[ -z "$nm_psk" ]] &&             nm_psk=$(grep -m1 -oP '(?<=psk=").*(?=")' "$wpa_conf" 2>/dev/null)
+        if [[ -n "$nm_ssid" ]]; then
+            mkdir -p "${NEXOS_MOUNT}/etc/NetworkManager/system-connections"
+            cat > "${NEXOS_MOUNT}/etc/NetworkManager/system-connections/${nm_ssid}.nmconnection" << NMEOF
+[connection]
+id=${nm_ssid}
+type=wifi
+autoconnect=true
+
+[wifi]
+mode=infrastructure
+ssid=${nm_ssid}
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=${nm_psk}
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
+NMEOF
+            chmod 600 "${NEXOS_MOUNT}/etc/NetworkManager/system-connections/${nm_ssid}.nmconnection"
+            ok "WiFi '${nm_ssid}' saved as NetworkManager profile (auto-connect)."
+        fi
+    fi
 
     # Write dhcpcd config for WiFi auto-connect
     cat > "${NEXOS_MOUNT}/etc/dhcpcd.conf" << 'EOF'
@@ -317,9 +362,12 @@ EOF
     _chroot "apt-get install -y ntpsec-ntpdate" 2>>"$NEXOS_LOG" ||         _chroot "apt-get install -y ntpdate" 2>>"$NEXOS_LOG" || true
     hwclock --systohc 2>/dev/null || true
 
-    # OpenRC: enable networking services
-    _chroot "rc-update add dhcpcd default" &>/dev/null || true
-    _chroot "rc-update add wpa_supplicant default" &>/dev/null || true
+    # OpenRC: NetworkManager is the only network service at boot.
+    # dhcpcd/wpa_supplicant stay installed (used by the 'wifi' fallback)
+    # but must NOT run as services — they fight NM.
+    _chroot "rc-update del dhcpcd default" &>/dev/null || true
+    _chroot "rc-update del wpa_supplicant default" &>/dev/null || true
+    _chroot "rc-update add NetworkManager default" &>/dev/null || true
 
     ok "Network configured."
 }

@@ -230,6 +230,11 @@ _on_exit() {
 # ════════════════════════════════════════════════════════════════
 banner
 
+# Console font — asked FIRST, before anything else, so the rest of
+# the installer is readable on high-DPI/touchscreen displays.
+select_font_size
+banner
+
 echo -e "  ${W}Welcome to NexOS.${N}"
 echo ""
 echo -e "  This installer will:"

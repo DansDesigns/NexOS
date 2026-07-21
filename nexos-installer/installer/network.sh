@@ -202,6 +202,10 @@ EOF
         net_dhcp "$iface"
         if net_is_connected; then
             connect_ok=0
+            # POWERSAVE OFF — DO NOT REMOVE
+            # WiFi powersave causes mid-download stalls (debootstrap
+            # hanging on "Retrieving..."). Disable for the install.
+            iw dev "$iface" set power_save off 2>/dev/null || true
             # WIFI CARRYOVER — DO NOT REMOVE
             # Persist credentials so configure_system.sh can copy them
             # to the installed system for auto-reconnect on boot.

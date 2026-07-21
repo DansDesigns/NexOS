@@ -72,6 +72,29 @@ install_desktop() {
     done
     cp /etc/resolv.conf "${NEXOS_MOUNT}/etc/resolv.conf" 2>/dev/null || true
 
+    # ═══════════════════════════════════════════════════════════
+    # CHROOT SERVICE FIX (desktop stage) — DO NOT REMOVE
+    # Package post-install scripts (invoke-rc.d -> rc-service) still
+    # fail inside the chroot at this stage — rc-service only exists
+    # on a REAL boot. Any apt/nala install here (including inside
+    # the Alternix installer, which runs under 'set -e') would abort
+    # the entire desktop-install run on the very first package that
+    # ships an init script. Divert invoke-rc.d for this whole stage;
+    # restore it once the chosen desktop has finished installing.
+    # ═══════════════════════════════════════════════════════════
+    chroot "$NEXOS_MOUNT" dpkg-divert --local --rename --quiet \
+        --add /usr/sbin/invoke-rc.d 2>/dev/null || true
+    cat > "${NEXOS_MOUNT}/usr/sbin/invoke-rc.d" << 'RCEOF'
+#!/bin/sh
+exit 0
+RCEOF
+    chmod +x "${NEXOS_MOUNT}/usr/sbin/invoke-rc.d"
+    cat > "${NEXOS_MOUNT}/usr/sbin/policy-rc.d" << 'PRCEOF'
+#!/bin/sh
+exit 101
+PRCEOF
+    chmod +x "${NEXOS_MOUNT}/usr/sbin/policy-rc.d"
+
     case "$NEXOS_DESKTOP" in
         alternix) _install_alternix ;;
         xfce)     _install_xfce ;;
@@ -85,6 +108,13 @@ install_desktop() {
                   select_desktop
                   install_desktop ;;
     esac
+
+    # Repair anything left half-configured, then restore invoke-rc.d
+    _chroot "dpkg --configure -a" 2>&1 | tee -a "$NEXOS_LOG" || true
+    rm -f "${NEXOS_MOUNT}/usr/sbin/invoke-rc.d"
+    chroot "$NEXOS_MOUNT" dpkg-divert --local --rename --quiet \
+        --remove /usr/sbin/invoke-rc.d 2>/dev/null || true
+    rm -f "${NEXOS_MOUNT}/usr/sbin/policy-rc.d"
 
     # Unmount chroot filesystems
     for fs in dev/pts dev sys proc; do
@@ -208,6 +238,45 @@ KBEOF
          bash install-alternix_devuan.sh"
     local alt_exit=$?
 
+    # ═══════════════════════════════════════════════════════════
+    # HOME OWNERSHIP FIX — DO NOT REMOVE
+    # The Alternix installer runs as root in the chroot, leaving
+    # root-owned files in the user's home (.cache, .config, .local,
+    # .Xauthority). Rootless X then cannot write its log and startx
+    # fails with "Permission denied". Re-own the whole home dir.
+    # ═══════════════════════════════════════════════════════════
+    info "Fixing home directory ownership..."
+    _chroot "chown -R ${NEXOS_USERNAME}:${NEXOS_USERNAME} /home/${NEXOS_USERNAME}"
+    # Pre-create the rootless-Xorg log dir so first startx succeeds
+    mkdir -p "${NEXOS_MOUNT}/home/${NEXOS_USERNAME}/.local/share/xorg" \
+             "${NEXOS_MOUNT}/home/${NEXOS_USERNAME}/.cache"
+    _chroot "chown -R ${NEXOS_USERNAME}:${NEXOS_USERNAME} /home/${NEXOS_USERNAME}/.local /home/${NEXOS_USERNAME}/.cache"
+    ok "Home ownership corrected."
+
+    # Verify nmcli made it in (network-manager can fail silently earlier)
+    if [[ ! -x "${NEXOS_MOUNT}/usr/bin/nmcli" ]]; then
+        warn "nmcli missing — installing network-manager..."
+        _chroot "apt-get install -y network-manager" 2>&1 | tee -a "$NEXOS_LOG" || \
+            warn "network-manager install failed — 'wifi' falls back to wpa_supplicant."
+    fi
+
+    # ═══════════════════════════════════════════════════════════
+    # SESSION + AUTOLOGIN — DO NOT REMOVE
+    # Without ~/.xinitrc startx runs the default session (twm/xterm,
+    # not installed) and X exits immediately with "terminated
+    # successfully". Alternix runs on qtile.
+    # ═══════════════════════════════════════════════════════════
+    cat > "${NEXOS_MOUNT}/home/${NEXOS_USERNAME}/.xinitrc" << 'XEOF'
+#!/bin/sh
+exec qtile start
+XEOF
+    chmod +x "${NEXOS_MOUNT}/home/${NEXOS_USERNAME}/.xinitrc"
+    _chroot "chown ${NEXOS_USERNAME}:${NEXOS_USERNAME} /home/${NEXOS_USERNAME}/.xinitrc"
+    ok ".xinitrc written (qtile)."
+
+    # Autologin on tty1 → auto-startx (user never touches a terminal)
+    _write_autologin "startx"
+
     if [[ $alt_exit -eq 0 ]]; then
         ok "Alternix installed — system will boot into the desktop."
     else
@@ -320,10 +389,21 @@ _write_autologin() {
     # Write getty autologin for tty1
     mkdir -p "${NEXOS_MOUNT}/etc/inittab.d" 2>/dev/null || true
 
-    # Patch inittab for autologin on tty1
+    # Patch inittab for autologin on tty1 (append the line if absent)
+    local agetty_line="1:2345:respawn:/sbin/agetty --autologin ${NEXOS_USERNAME} --noclear tty1 38400 linux"
     if [[ -f "${NEXOS_MOUNT}/etc/inittab" ]]; then
-        sed -i "s|^1:.*tty1.*|1:2345:respawn:/sbin/agetty --autologin ${NEXOS_USERNAME} --noclear tty1 38400 linux|" \
-            "${NEXOS_MOUNT}/etc/inittab"
+        if grep -q "^1:.*tty1" "${NEXOS_MOUNT}/etc/inittab"; then
+            sed -i "s|^1:.*tty1.*|${agetty_line}|" "${NEXOS_MOUNT}/etc/inittab"
+        else
+            echo "$agetty_line" >> "${NEXOS_MOUNT}/etc/inittab"
+        fi
+        if grep -q "autologin ${NEXOS_USERNAME}" "${NEXOS_MOUNT}/etc/inittab"; then
+            ok "Autologin enabled for ${NEXOS_USERNAME} on tty1."
+        else
+            warn "Autologin patch did NOT land in /etc/inittab — check manually."
+        fi
+    else
+        warn "/etc/inittab missing — autologin not configured."
     fi
 
     # Write .bash_profile to auto-startx on login

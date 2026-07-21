@@ -60,7 +60,19 @@ banner() {
     echo -e "  ${W}NexOS Installer v0.1${N}  ${D}One OS. Any machine.${N}"
     echo ""
     echo -e "  ${D}CPU   ${N}${W}${cpu}${N}"
-    echo -e "  ${D}RAM   ${N}${W}${ram}${N}   ${D}Arch${N} ${W}${arch}${N}"
+    # Battery meter (laptops) — blank on desktops
+    local bat_cap bat_stat bat_str=""
+    bat_cap=$(cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | sed -n 1p)
+    bat_stat=$(cat /sys/class/power_supply/BAT*/status 2>/dev/null | sed -n 1p)
+    if [[ -n "$bat_cap" ]]; then
+        local bat_col="$G"
+        (( bat_cap < 50 )) && bat_col="$Y"
+        (( bat_cap < 20 )) && bat_col="$R"
+        local bat_sym="▮"
+        [[ "$bat_stat" == "Charging" ]] && bat_sym="⚡"
+        bat_str="   ${D}Batt${N} ${bat_col}${bat_sym}${bat_cap}%${N}"
+    fi
+    echo -e "  ${D}RAM   ${N}${W}${ram}${N}   ${D}Arch${N} ${W}${arch}${N}${bat_str}"
     local _ec=${NEXOS_ERROR_COUNT:-0}
     if [[ $_ec -gt 0 ]]; then
         printf "  ${R}Errors Encountered: %02d${N}\n" "$_ec"
@@ -157,6 +169,44 @@ progress_bar() {
     for (( i=0; i<empty;  i++ )); do bar+="░"; done
     local pct=$(( cur * 100 / total ))
     echo -en "\r  ${T}[${bar}]${N} ${W}${pct}%${N}  ${D}${label}${N}  "
+}
+
+# ── Console font size — asked first, applied live ──────────────────
+select_font_size() {
+    clear
+    echo ""
+    echo -e "  ${W}Console font size${N}"
+    echo ""
+    echo -e "  ${T}1${N}  Small   (8x16)"
+    echo -e "  ${T}2${N}  Normal  (10x20)   ${D}default${N}"
+    echo -e "  ${T}3${N}  Large   (16x32)"
+    echo -e "  ${T}4${N}  Extra large (32x16, for HiDPI/touchscreens)"
+    echo ""
+
+    local font_map=("VGA" "Terminus10x20" "Ter-132n" "Ter-132b")
+    # setfont-loadable names (available in kbd package, live env + target)
+    local setfont_map=("default8x16" "Uni2-Terminus10x20" "Uni2-Terminus32x16" "Uni2-TerminusBold32x16")
+    local console_setup_map=("VGA" "Terminus" "Terminus" "TerminusBold")
+    local console_size_map=("16" "20" "32" "32")
+
+    while true; do
+        echo -en "  ${W}Select${N} ${D}[2]${N}: "
+        read -r choice
+        case "$choice" in ""|2) choice=2 ;; esac
+        if [[ "$choice" =~ ^[1-4]$ ]]; then
+            local idx=$(( choice - 1 ))
+            NEXOS_FONT_SETFONT="${setfont_map[$idx]}"
+            NEXOS_FONT_FACE="${console_setup_map[$idx]}"
+            NEXOS_FONT_SIZE="${console_size_map[$idx]}"
+            break
+        fi
+        warn "Enter 1-4."
+    done
+
+    # Apply immediately in the live console so the rest of the
+    # installer is readable right away.
+    setfont "$NEXOS_FONT_SETFONT" 2>/dev/null || true
+    ok "Console font set."
 }
 
 step() { echo -e "  ${D}[${N}${W}$1${N}${D}/${W}$2${N}${D}]${N}  $3"; }
