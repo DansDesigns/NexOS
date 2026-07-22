@@ -242,10 +242,14 @@ _configure_sudoers() {
     # Ensure sudo package is installed
     _chroot "apt-get install -y sudo" &>/dev/null || true
 
-    # Write sudoers entry
+    # SUDOERS ORDERING — DO NOT REMOVE
+    # File named 10-nexos-<user> so it sorts BEFORE any desktop-written
+    # rules (e.g. Alternix's alternix-nopasswd). Sudo applies the LAST
+    # matching rule, so desktop policies override this baseline instead
+    # of being silently overridden by it.
     echo "${NEXOS_USERNAME} ALL=(ALL:ALL) ALL" > \
-        "${NEXOS_MOUNT}/etc/sudoers.d/${NEXOS_USERNAME}"
-    chmod 440 "${NEXOS_MOUNT}/etc/sudoers.d/${NEXOS_USERNAME}"
+        "${NEXOS_MOUNT}/etc/sudoers.d/10-nexos-${NEXOS_USERNAME}"
+    chmod 440 "${NEXOS_MOUNT}/etc/sudoers.d/10-nexos-${NEXOS_USERNAME}"
 
     # Verify sudoers.d is included in main sudoers
     if ! grep -q "includedir.*sudoers.d" "${NEXOS_MOUNT}/etc/sudoers" 2>/dev/null; then
