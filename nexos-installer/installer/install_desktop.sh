@@ -280,8 +280,8 @@ XEOF
     if [[ $alt_exit -eq 0 ]]; then
         ok "Alternix installed — system will boot into the desktop."
     else
-        warn "Alternix installer exited with code ${alt_exit}."
-        warn "Check output above for details."
+        err "Alternix installer exited with code ${alt_exit}."
+        err "Check output above for details."
     fi
 }
 
