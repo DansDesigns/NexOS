@@ -3,7 +3,7 @@
 NexOS is a custom, systemd-free Linux operating system built on Devuan
 GNU/Linux, designed as the foundation for the
 [Alternix](https://github.com/DansDesigns/Alternix) desktop environment.
-It also incorporates the seL4 microkernel from source during installation,
+It incorporates the seL4 microkernel from source during installation,
 optimised for your exact CPU (`-march=native`), and installs it to
 `/opt/sel4/`.
 
